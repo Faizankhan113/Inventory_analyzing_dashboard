@@ -1,0 +1,41 @@
+vendor_id,vendor_name,for_product,purchase_price
+V001,ElectroMart Supplies,P001,350
+V001,ElectroMart Supplies,P004,1600
+V001,ElectroMart Supplies,P008,2500
+V001,ElectroMart Supplies,P012,2800
+V001,ElectroMart Supplies,P016,450
+V001,ElectroMart Supplies,P020,2400
+V001,ElectroMart Supplies,P024,900
+V001,ElectroMart Supplies,P028,700
+V002,TechSource Distributors,P002,2700
+V002,TechSource Distributors,P006,7200
+V002,TechSource Distributors,P010,550
+V002,TechSource Distributors,P014,150
+V002,TechSource Distributors,P018,500
+V002,TechSource Distributors,P022,650
+V002,TechSource Distributors,P030,800
+V002,TechSource Distributors,P036,350
+V003,Prime Electronics Co.,P003,650
+V003,Prime Electronics Co.,P007,3200
+V003,Prime Electronics Co.,P011,3600
+V003,Prime Electronics Co.,P015,1500
+V003,Prime Electronics Co.,P019,4200
+V003,Prime Electronics Co.,P023,1700
+V003,Prime Electronics Co.,P031,6000
+V003,Prime Electronics Co.,P037,7000
+V004,GigaTech Traders,P005,2100
+V004,GigaTech Traders,P009,1000
+V004,GigaTech Traders,P013,1400
+V004,GigaTech Traders,P017,1100
+V004,GigaTech Traders,P021,9000
+V004,GigaTech Traders,P025,1700
+V004,GigaTech Traders,P032,900
+V004,GigaTech Traders,P038,900
+V005,DigitalHub Wholesale,P026,6500
+V005,DigitalHub Wholesale,P027,250
+V005,DigitalHub Wholesale,P029,5000
+V005,DigitalHub Wholesale,P033,250
+V005,DigitalHub Wholesale,P034,950
+V005,DigitalHub Wholesale,P035,1200
+V005,DigitalHub Wholesale,P039,1300
+V005,DigitalHub Wholesale,P040,500

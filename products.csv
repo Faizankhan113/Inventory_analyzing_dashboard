@@ -1,0 +1,41 @@
+product_id,product_name,selling_price,stock_in_inventory
+P001,Wireless Mouse,599,120
+P002,Mechanical Keyboard,3499,45
+P003,USB-C Fast Charger,999,200
+P004,Bluetooth Speaker,2499,60
+P005,Gaming Headset,2999,35
+P006,LED Monitor 24 Inch,8999,22
+P007,External Hard Drive 1TB,4499,75
+P008,SSD 500GB,3299,90
+P009,Webcam HD,1499,58
+P010,Laptop Cooling Pad,899,100
+P011,Smartwatch Series A,4999,40
+P012,Noise Cancelling Earbuds,3999,80
+P013,Portable Power Bank 20000mAh,1999,150
+P014,HDMI Cable 2m,299,300
+P015,WiFi Router Dual Band,2199,65
+P016,USB Flash Drive 64GB,699,250
+P017,Bluetooth Keyboard,1599,90
+P018,Smart LED Bulb,799,120
+P019,VR Headset Basic,5999,18
+P020,Graphics Tablet Small,3499,30
+P021,Laser Printer,11999,12
+P022,Ink Cartridge Black,999,80
+P023,Desk Microphone,2499,50
+P024,Wireless Earphones,1599,140
+P025,Gaming Controller,2499,60
+P026,Portable Projector Mini,8999,15
+P027,Ethernet Cable 5m,399,200
+P028,Smart Plug WiFi,1099,90
+P029,Soundbar Home,6999,25
+P030,Bluetooth Tracker,1299,110
+P031,Action Camera 4K,7999,12
+P032,Laptop Stand Aluminum,1499,70
+P033,RGB Strip Light,499,160
+P034,Smart Door Sensor,1499,50
+P035,Portable Bluetooth Keyboard,1999,55
+P036,USB Hub 4-Port,599,190
+P037,Drone Mini,9999,8
+P038,Wireless Charging Pad,1499,130
+P039,Mini UPS for Router,1999,40
+P040,LED Desk Lamp USB Powered,899,140
