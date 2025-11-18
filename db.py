@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, text
 import pandas as pd
 
 # Create SQLAlchemy engine
-engine = create_engine("postgresql+psycopg2://postgres:Anjumara%401@localhost:5432/inventory_db")
+engine = create_engine("postgresql+psycopg2://username:password@host_name/database_name")
 
 def fetch_data(query, params= None):
     if params:
