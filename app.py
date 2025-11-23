@@ -13,10 +13,10 @@ app.layout = html.Div(
         html.H1('pi-chart for vendors' , style={'textAlign':'center' }),
         dcc.Graph(id='pi-chart'),
 
+
+        # searching for product
         html.H2("Search Product Stock", style={"textAlign": "center"}),
 
-        # ✅ Single searchable dropdown (type to search)
-        # Container for dropdown and button side by side
         html.Div(
             style={
                 "display": "flex",
@@ -83,7 +83,6 @@ app.layout = html.Div(
             ]
         ),
         
-
         html.Button(
             "Search",
             id="search-button",
@@ -111,11 +110,19 @@ app.layout = html.Div(
             },
         ),
 
+
+        # bar graph for profit / sales graph
         html.Div([
 
-            html.H1('Profite Graph',style={'textAlign':'center'}),
+            html.Div([
+                    html.Button("profit", id="btn_profit", n_clicks=0, style={'width':'100px','height':'30px'}),
+                    html.Button("sales", id="btn_sales", n_clicks=0, style={'width':'100px','height':'30px'}),
+                ],
+                style={'gap':'20px','display':'flex'}
+            ),
 
-            # Buttons positioned above the graph
+            html.H1("Profit Graph",id='bar_graph_text', style={'textAlign':'center'}),
+
             html.Div([
                 html.Button("Year", id="btn_year", n_clicks=0 , style={"width": "100px", "height": "35px"}),
                 html.Button("Month", id="btn_month", n_clicks=0 , style={"width": "100px", "height": "35px"}),
@@ -137,14 +144,13 @@ app.layout = html.Div(
                         ),
                 ], style={
                     "position": "absolute",
-                    "top": "65px",
+                    "top": "115px",
                     "left": "100px",
                     "zIndex": 10,
                     "display": "flex",
                     "gap": "10px",
-            }),
-
-
+                }
+            ),
 
             # Graph
             dcc.Graph(id='total_profit', style={"height": "400px"}),
@@ -152,11 +158,10 @@ app.layout = html.Div(
         ], style={
             "position": "relative",         
             "width": "600px",                     
-        })
-
-        
+        })   
     ]
 )
+
 
 @app.callback(
     Output('pi-chart','figure'),
@@ -197,11 +202,14 @@ def pi_chart_function(_):
 
     return fig
 
+
+
 @app.callback(
     Output("product-dropdown", "options"),
     Input("product-dropdown", "search_value"),
     State("product-dropdown", "value")
 )
+
 def update_dropdown_options(search_value, current_value):
     """Update dropdown options as user types"""
 
@@ -242,11 +250,13 @@ def update_dropdown_options(search_value, current_value):
     return [{"label": name, "value": name} for name in df["product_name"]]
 
 
+
 @app.callback(
     Output("search-result", "children"),
     Input("search-button", "n_clicks"),
     State("product-dropdown", "value")
 )
+
 def search_product(n_clicks, selected_product):
     """Display stock info when search button is clicked"""
     if n_clicks == 0:
@@ -274,6 +284,7 @@ def search_product(n_clicks, selected_product):
         html.Br(),
         html.Span(f"Stock: {row['stock_in_inventory']} units", style={"fontSize": "24px", "color": "#2c3e50"})
     ])
+
 
 
 @app.callback(
@@ -310,98 +321,140 @@ def drop_up_content_update(n_click,style):
     return content , style
 
 
-
+show_profit=True
 @app.callback(
     Output('total_profit','figure'),
     Output('month_dropdown','style'),
+    Output('bar_graph_text','children'),
     [
         Input('total_profit','id'),
         Input('btn_year','n_clicks'),
         Input('btn_month','n_clicks'),
-        Input('year','value')
+        Input('year','value'),
+        Input('btn_profit','n_clicks'),
+        Input('btn_sales','n_clicks'),
     ] 
 )
 
-def perodic_profit(_,__,___,year_value):
+def perodic_profit(_,__,___,year_value,____,_____):
+
+    global show_profit
 
     ctx = callback_context
-    triggered = ctx.triggered[0]['prop_id'].split('.')[0]
-    m=0
 
-    if triggered == 'btn_month' or triggered == 'year':
-        qurey= """
-                SELECT date_trunc('month',transaction_date) as month,
-                    sum(bill_amount * (1 - (discount_rate / 100.0))) as final_bill,
-                    array_agg(product_sold) as product_list 
-                FROM selling_records 
-                WHERE EXTRACT(YEAR FROM transaction_date) = :yr
-                group by month 
-                order by month;
-                """
-        df = fetch_data(qurey,params={'yr':year_value})
-        df['month'] = to_datetime(df['month']).dt.strftime('%b')
-        m=1
+    if not ctx.triggered:
+        # for initial loading
+        triggered = 'total_profit'
+    else:
+        triggered = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    else:    
-        qurey= """
-                SELECT 
-                    to_char(transaction_date,'yyyy') as year,
-                    sum(bill_amount * (1 - (discount_rate / 100.0))) as final_bill,
-                    array_agg(product_sold) as product_list 
-                FROM selling_records 
-                group by year 
-                order by year;
-                """
-        df = fetch_data(qurey)
-        m=0
+    m=False
 
-    qurey= '''
-                SELECT v.purchase_price AS price, p.product_name AS product
-                FROM vendors v JOIN products p 
-                ON v.for_product = p.product_id;
-            '''
-    df_temp = fetch_data(qurey)
-    d=dict(zip(df_temp['product'],df_temp['price']))
+    if triggered == 'btn_sales':
+        show_profit=False
+    elif triggered == 'btn_profit' or triggered == 'total_profit':
+        show_profit=True
 
-    def use_this(x):
-        total=0
+    # for profit graph
+    if show_profit:
+        # for monthly profit graph
+        if triggered == 'btn_month' or triggered == 'year':
+            qurey= """
+                    SELECT date_trunc('month',transaction_date) as month,
+                        sum(bill_amount * (1 - (discount_rate / 100.0))) as final_bill,
+                        array_agg(product_sold) as product_list 
+                    FROM selling_records 
+                    WHERE EXTRACT(YEAR FROM transaction_date) = :yr
+                    group by month 
+                    order by month;
+                    """
+            df = fetch_data(qurey,params={'yr':year_value})
+            df['month'] = to_datetime(df['month']).dt.strftime('%b')
+            m=True
 
-        for i in x:
-            if ';' in i:
-                a=i.split(';')
-                for j in a :
-                    temp_a, temp_b = j.split('- ')
+        # for yearly profit graph
+        else:    
+            qurey= """
+                    SELECT 
+                        to_char(transaction_date,'yyyy') as year,
+                        sum(bill_amount * (1 - (discount_rate / 100.0))) as final_bill,
+                        array_agg(product_sold) as product_list 
+                    FROM selling_records 
+                    group by year 
+                    order by year;
+                    """
+            df = fetch_data(qurey)
+            m=False
+
+        # making dictinary of {product_name : price} start here
+        qurey= '''
+                    SELECT v.purchase_price AS price, p.product_name AS product
+                    FROM vendors v JOIN products p 
+                    ON v.for_product = p.product_id;
+                '''
+        df_temp = fetch_data(qurey)
+        d=dict(zip(df_temp['product'],df_temp['price']))       # till here
+
+        # function for finding total cost of all product from a list of products
+        def use_this(x):
+            total=0
+
+            for i in x:
+                if ';' in i:
+                    a=i.split(';')
+                    for j in a :
+                        temp_a, temp_b = j.split('- ')
+                        temp_a=temp_a.strip()
+                        total += (d[temp_a] * int(temp_b))
+                else:
+                    temp_a, temp_b = i.split('- ')
                     temp_a=temp_a.strip()
                     total += (d[temp_a] * int(temp_b))
-            else:
-                temp_a, temp_b = i.split('- ')
-                temp_a=temp_a.strip()
-                total += (d[temp_a] * int(temp_b))
 
-        return total
-    
-    df['total_cost'] = df['product_list'].apply(use_this)
-    
-    df['profite']= df['final_bill'] - df["total_cost"]
+            return total
+        
+        df['total_cost'] = df['product_list'].apply(use_this)
+        
+        df['profit']= df['final_bill'] - df["total_cost"]
 
-    if m:
-        fig = px.bar(
-            df,
-            x='month',
-            y='profite',
-        )
-        style={'display':'block'}
-        return fig , style
+    # for sales graph
+    else:
+        # for monthly sales graph
+        if triggered == 'btn_month' or triggered == 'year':
+            qurey= """
+                    SELECT date_trunc('month',transaction_date) as month,
+                        sum(bill_amount * (1 - (discount_rate / 100.0))) as total_sales 
+                    FROM selling_records 
+                    WHERE EXTRACT(YEAR FROM transaction_date) = :yr
+                    group by month 
+                    order by month;
+                    """
+            df = fetch_data(qurey,params={'yr':year_value})
+            df['month'] = to_datetime(df['month']).dt.strftime('%b')
+            m=True
+
+        # for yearly sales graph
+        else:
+            qurey= """
+                    SELECT 
+                        to_char(transaction_date,'yyyy') as year,
+                        sum(bill_amount * (1 - (discount_rate / 100.0))) as total_sales 
+                    FROM selling_records 
+                    group by year 
+                    order by year;
+                    """
+            df = fetch_data(qurey)
+            m=False
 
 
     fig = px.bar(
         df,
-        x='year',
-        y='profite',
+        x='month' if m else 'year',
+        y='profit' if show_profit else 'total_sales',
     )
-    style={'display':'none'}
-    return fig, style
-
+    style={'display':'block' if m else 'none'}
+    text= 'Profit Graph' if show_profit else 'Sales Graph'
+    return fig , style, text
 
 
 if __name__ == "__main__":
@@ -417,7 +470,6 @@ if __name__ == "__main__":
 
 
 #   to add :-
-# 1- make the vendor delevery dataset
 # 2- make a chart of total profit per day / month / week and also for per product
 # for profit showing i will show bar graph for every year and for every month in a year (will give options for selecting which year the data will show)
 
