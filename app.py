@@ -1,11 +1,12 @@
-from dash import Dash, html, dcc, Output, Input, State
+from dash import Dash, html, dcc, Output, Input, State, callback_context
 import plotly.express as px
+from pandas import to_datetime
 from db import fetch_data
-
+# db is my file which has the database connected fetch_data is a function througn which i send SQL querry and i get pandas's dataframe
 app = Dash(__name__)
 
 app.layout = html.Div(
-    style={"padding": "30px", "width": "500px", "margin": "auto"},
+    style={"padding": "30px", "width": "500px", "margin": "0 30px"},
     children=[
 
         # making a pi chart
@@ -109,6 +110,51 @@ app.layout = html.Div(
                 "borderRadius": "5px"
             },
         ),
+
+        html.Div([
+
+            html.H1('Profite Graph',style={'textAlign':'center'}),
+
+            # Buttons positioned above the graph
+            html.Div([
+                html.Button("Year", id="btn_year", n_clicks=0 , style={"width": "100px", "height": "35px"}),
+                html.Button("Month", id="btn_month", n_clicks=0 , style={"width": "100px", "height": "35px"}),
+                html.Div(
+                        id='month_dropdown',
+                        children=[
+                            dcc.Dropdown(
+                                id='year',
+                                options=[
+                                    {"label": "2023", "value": 2023},
+                                    {"label": "2024", "value": 2024},
+                                    {"label": "2025", "value": 2025},
+                                ],
+                                value=2025,
+                                clearable=False,
+                                style={'width':'120px', 'margin':'0 auto'}
+                            )],
+                        style={"display": "none"}
+                        ),
+                ], style={
+                    "position": "absolute",
+                    "top": "65px",
+                    "left": "100px",
+                    "zIndex": 10,
+                    "display": "flex",
+                    "gap": "10px",
+            }),
+
+
+
+            # Graph
+            dcc.Graph(id='total_profit', style={"height": "400px"}),
+
+        ], style={
+            "position": "relative",         
+            "width": "600px",                     
+        })
+
+        
     ]
 )
 
@@ -131,7 +177,7 @@ def pi_chart_function(_):
                                        .reset_index())
 
     grouped["details"] = grouped.apply(
-        lambda row: "<br>".join([f"{p} – {s}" for p, s in zip(row["products"], row["stocks"])]),
+        lambda row: "<br>".join([f"● {p} – {s}" for p, s in zip(row["products"], row["stocks"])]),
         axis=1
     )
 
@@ -265,10 +311,113 @@ def drop_up_content_update(n_click,style):
 
 
 
+@app.callback(
+    Output('total_profit','figure'),
+    Output('month_dropdown','style'),
+    [
+        Input('total_profit','id'),
+        Input('btn_year','n_clicks'),
+        Input('btn_month','n_clicks'),
+        Input('year','value')
+    ] 
+)
+
+def perodic_profit(_,__,___,year_value):
+
+    ctx = callback_context
+    triggered = ctx.triggered[0]['prop_id'].split('.')[0]
+    m=0
+
+    if triggered == 'btn_month' or triggered == 'year':
+        qurey= """
+                SELECT date_trunc('month',transaction_date) as month,
+                    sum(bill_amount * (1 - (discount_rate / 100.0))) as final_bill,
+                    array_agg(product_sold) as product_list 
+                FROM selling_records 
+                WHERE EXTRACT(YEAR FROM transaction_date) = :yr
+                group by month 
+                order by month;
+                """
+        df = fetch_data(qurey,params={'yr':year_value})
+        df['month'] = to_datetime(df['month']).dt.strftime('%b')
+        m=1
+
+    else:    
+        qurey= """
+                SELECT 
+                    to_char(transaction_date,'yyyy') as year,
+                    sum(bill_amount * (1 - (discount_rate / 100.0))) as final_bill,
+                    array_agg(product_sold) as product_list 
+                FROM selling_records 
+                group by year 
+                order by year;
+                """
+        df = fetch_data(qurey)
+        m=0
+
+    qurey= '''
+                SELECT v.purchase_price AS price, p.product_name AS product
+                FROM vendors v JOIN products p 
+                ON v.for_product = p.product_id;
+            '''
+    df_temp = fetch_data(qurey)
+    d=dict(zip(df_temp['product'],df_temp['price']))
+
+    def use_this(x):
+        total=0
+
+        for i in x:
+            if ';' in i:
+                a=i.split(';')
+                for j in a :
+                    temp_a, temp_b = j.split('- ')
+                    temp_a=temp_a.strip()
+                    total += (d[temp_a] * int(temp_b))
+            else:
+                temp_a, temp_b = i.split('- ')
+                temp_a=temp_a.strip()
+                total += (d[temp_a] * int(temp_b))
+
+        return total
+    
+    df['total_cost'] = df['product_list'].apply(use_this)
+    
+    df['profite']= df['final_bill'] - df["total_cost"]
+
+    if m:
+        fig = px.bar(
+            df,
+            x='month',
+            y='profite',
+        )
+        style={'display':'block'}
+        return fig , style
 
 
+    fig = px.bar(
+        df,
+        x='year',
+        y='profite',
+    )
+    style={'display':'none'}
+    return fig, style
 
 
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+
+
+
+
+
+
+
+
+
+#   to add :-
+# 1- make the vendor delevery dataset
+# 2- make a chart of total profit per day / month / week and also for per product
+# for profit showing i will show bar graph for every year and for every month in a year (will give options for selecting which year the data will show)
+
