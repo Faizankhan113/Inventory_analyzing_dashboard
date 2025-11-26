@@ -1,7 +1,7 @@
-from dash import Dash, html, dcc, Output, Input, State, callback_context
+from dash import Dash, html, dcc, Output, Input, State, callback_context, no_update
 import plotly.express as px
 from pandas import to_datetime
-from db import fetch_data
+from db import fetch_data, write_data
 # db is my file which has the database connected fetch_data is a function througn which i send SQL querry and i get pandas's dataframe
 app = Dash(__name__)
 
@@ -9,6 +9,8 @@ app.layout = html.Div(
     style={"padding": "30px", "width": "500px", "margin": "0 30px"},
     children=[
 
+        html.Button('go to order page',id='btn_order',n_clicks=0)
+        ,
         # making a pi chart
         html.H1('pi-chart for vendors' , style={'textAlign':'center' }),
         dcc.Graph(id='pi-chart'),
@@ -158,9 +160,109 @@ app.layout = html.Div(
         ], style={
             "position": "relative",         
             "width": "600px",                     
-        })   
+        }),
+
+        # --- Popup Overlay + Centered Modal Box ---
+        html.Div(
+            id="modal_overlay",
+            children=[
+                html.Div(
+                    id="modal-box",
+                    children=[
+                        html.H2("Order Form", style={"marginBottom": "10px"}),
+
+                        dcc.Dropdown(
+                            id="order_product_selection",
+                            options=[],
+                            placeholder="Type product name to search...",
+                            style={
+                                "fontSize": "16px",
+                                'height' : '40px',
+                                'marginBottom': '20px'
+                            },
+                            clearable=True,
+                            searchable=True,
+                        ),
+
+                        dcc.Input(
+                            id="qty_input",
+                            type="number",
+                            placeholder="Quantity",
+                            style={"width": "80%", "marginBottom": "20px",'height' : '40px'}
+                        ),
+
+                        html.Div([
+                            html.Button("Submit", id="btn_submit", style={"marginRight": "5px"}),
+                            html.Button("Close", id="btn_close", n_clicks=0),
+                        ])
+                    ],
+                    style={
+                        "background": "white",
+                        "padding": "20px",
+                        "width": "400px",
+                        'height': '450px',
+                        "borderRadius": "12px",
+                        "boxShadow": "0px 4px 25px rgba(0,0,0,0.3)",
+                        "textAlign": "center",
+                    }
+                )
+            ],
+            style={
+                "position": "fixed",
+                "top": 0,
+                "left": 0,
+                "width": "100%",
+                "height": "100%",
+                "background": "rgba(0,0,0,0.4)",  # transparent black background
+                "display": "none",                # HIDDEN by default
+                "alignItems": "center",           # center vertical
+                "justifyContent": "center",       # center horizontal
+                "zIndex": 99                   # VERY HIGH so it stays above everything
+            }
+        ),
+
+        # popup for order conformation
+        html.Div(
+            id="order_conformation_popup",
+            children=[
+                html.Div(
+                    id="order_popup_box",
+                    children=[
+                        html.H3("Confirm Order"),
+                        html.P("Are you sure you want to place this order?"),
+                        html.P(id='popup_order_detail'),
+
+                        html.Button("OK", id="popup_ok", n_clicks=0),
+                        html.Button("Cancel", id="popup_cancel", n_clicks=0),
+                    ],
+                    style={
+                        "background": "white",
+                        "padding": "20px",
+                        "borderRadius": "10px",
+                        "width": "300px",
+                        "textAlign": "center",
+                    },
+                )
+            ],
+            style={
+                "position": "fixed",
+                "top": 0,
+                "left": 0,
+                "width": "100%",
+                "height": "100%",
+                "background": "rgba(0,0,0,0.5)",
+                "display": "none",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "zIndex": 999,
+            },
+        )
+
     ]
 )
+
+query= "SELECT product_name FROM products"
+df_product=fetch_data(query)
 
 
 @app.callback(
@@ -229,23 +331,10 @@ def update_dropdown_options(search_value, current_value):
     # If user is typing (but hasn't selected yet)
     if not search_value or len(search_value) < 1:
         # Show top 8 products initially
-        query = """
-            SELECT product_name 
-            FROM products 
-            ORDER BY product_name
-            LIMIT 8;
-        """
-        df = fetch_data(query)
+        df = df_product.head(8)
     else:
         # Filter based on what user types
-        query = """
-            SELECT product_name 
-            FROM products 
-            WHERE LOWER(product_name) LIKE LOWER(:search_term)
-            ORDER BY product_name
-            LIMIT 8;
-        """
-        df = fetch_data(query, params={"search_term": f"%{search_value}%"})
+        df = df_product[df_product['product_name'].str.contains(search_value,case=False)].head(8)
 
     return [{"label": name, "value": name} for name in df["product_name"]]
 
@@ -298,7 +387,8 @@ def drop_up_content_update(n_click,style):
     if n_click % 2 == 1 :
         query="""
             SELECT product_name
-            FROM products;
+            FROM products
+            ORDER BY product_name;
         """
         df = fetch_data(query)
         items=df['product_name'].to_list()
@@ -455,6 +545,74 @@ def perodic_profit(_,__,___,year_value,____,_____):
     style={'display':'block' if m else 'none'}
     text= 'Profit Graph' if show_profit else 'Sales Graph'
     return fig , style, text
+
+
+
+@app.callback(
+    Output('order_product_selection','options'),
+    Input('order_product_selection','search_value'),
+    Input('order_product_selection','value')
+)
+
+def order_popup_dropdown_options_update(search_value,value):
+
+    if value and not search_value:
+        # this condition make sure that the value of the dropdown is in the options of dropdown , if the value of dropdown is not in the options of dropdown then the value will be cleared from the dropdown
+        df= df_product[df_product["product_name"].str.contains(value[:5],case=False)].head(5)
+        return [{'label':name , 'value':name} for name in df['product_name']]
+
+    if not search_value or len(search_value) < 1:
+        df= df_product.head(5)
+    else:
+        df= df_product[df_product["product_name"].str.contains(search_value,case=False)].head(5)
+
+    return [{'label':name , 'value':name} for name in df['product_name']]
+
+
+
+@app.callback(
+    Output('order_conformation_popup', 'style'),
+    Output('modal_overlay','style'),
+    Output('popup_order_detail','children'),
+    Input('popup_ok','n_clicks'),
+    Input('popup_cancel','n_clicks'),
+    Input('btn_submit','n_clicks'),
+    Input('btn_order','n_clicks'),
+    Input('btn_close','n_clicks'),
+    State('order_conformation_popup', 'style'),
+    State('modal_overlay','style'),
+    State('order_product_selection', 'value'),
+    State('qty_input', 'value'),
+
+)
+
+def conform_order_popup_visibility(_,__,___,____,_____,order_conformation_style,order_page_style,product,quantity):
+    ctx_id= callback_context.triggered_id
+
+    if ctx_id == 'btn_submit':
+        text=html.Div([
+                        html.B(f'Product name = {product}'),
+                        html.Br(),
+                        html.Br(),
+                        html.B(f'Quantity = {quantity}')
+                    ])
+        order_conformation_style['display'] = 'flex'
+        return order_conformation_style , no_update, text
+    
+    if ctx_id == 'popup_ok':
+        write_data([product,quantity])
+        order_page_style['display'] = 'none'
+        order_conformation_style['display'] = 'none'
+        return order_conformation_style, order_page_style, no_update
+    
+    if ctx_id == 'popup_cancel':
+        order_conformation_style['display'] = 'none'
+        return order_conformation_style, no_update, no_update
+    
+    else:
+        order_page_style['display'] = 'flex' if ctx_id == 'btn_order' else 'none'
+        return no_update, order_page_style, no_update
+
 
 
 if __name__ == "__main__":
