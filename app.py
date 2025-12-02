@@ -1,8 +1,9 @@
-from dash import Dash, html, dcc, Output, Input, State, callback_context, no_update
+from dash import Dash, html, dcc, Output, Input, State, callback_context, no_update, ALL
 import plotly.express as px
 from pandas import to_datetime
-from db import fetch_data, write_data
+from db import fetch_data, write_data, update_data
 # db is my file which has the database connected fetch_data is a function througn which i send SQL querry and i get pandas's dataframe
+
 app = Dash(__name__)
 
 app.layout = html.Div(
@@ -188,7 +189,7 @@ app.layout = html.Div(
                             id="qty_input",
                             type="number",
                             placeholder="Quantity",
-                            style={"width": "80%", "marginBottom": "20px",'height' : '40px'}
+                            style={"width": "80%", "marginBottom": "20px",'height' : '40px',"fontSize": "20px",}
                         ),
 
                         html.Div([
@@ -213,11 +214,11 @@ app.layout = html.Div(
                 "left": 0,
                 "width": "100%",
                 "height": "100%",
-                "background": "rgba(0,0,0,0.4)",  # transparent black background
-                "display": "none",                # HIDDEN by default
-                "alignItems": "center",           # center vertical
-                "justifyContent": "center",       # center horizontal
-                "zIndex": 99                   # VERY HIGH so it stays above everything
+                "background": "rgba(0,0,0,0.4)",  
+                "display": "none",                
+                "alignItems": "center",           
+                "justifyContent": "center",       
+                "zIndex": 99                   
             }
         ),
 
@@ -232,7 +233,7 @@ app.layout = html.Div(
                         html.P("Are you sure you want to place this order?"),
                         html.P(id='popup_order_detail'),
 
-                        html.Button("OK", id="popup_ok", n_clicks=0),
+                        html.Button("OK", id="popup_ok", n_clicks=0, style={'marginRight':'20px'}),
                         html.Button("Cancel", id="popup_cancel", n_clicks=0),
                     ],
                     style={
@@ -256,13 +257,111 @@ app.layout = html.Div(
                 "alignItems": "center",
                 "zIndex": 999,
             },
-        )
+        ),
+
+        # section for live update on delevry
+        html.Div([
+            html.H2("🚚 Active Deliveries", style={
+                "textAlign": "center",
+                "marginBottom": "20px"
+            }),
+
+            html.Div(id="live_delivery_feed",style={"overflowY": "scroll"}),
+
+            dcc.Interval(
+                id="refresh_feed",
+                interval= 5 * 60 * 1000,   
+                n_intervals=0
+            )
+        ]),
+
+        # for delivery details which has not yet recived
+        html.Div(
+            id="pop_up_delivery_detail_outer",
+            children=[
+                html.Div(
+                    id="pop_up_delivery_detail_inner",
+                    children=[
+                        html.H1("delivery Detail", style={"marginBottom": "30px",'textAlign':'center'}),
+
+                        html.Div(id='delivery_details'),
+                       
+                        html.Div([
+                            html.Button("Cancel Order", id="btn_cancel_detail", n_clicks=0, style={"marginRight": "15px", 'height':'32px'}),
+                            html.Button("Mark As Delevered", id="btn_delivered_detail", n_clicks=0, style={"marginRight": "60px", 'height':'32px'}),
+                            html.Button("Close", id="btn_close_detail", n_clicks=0,style={'height':'32px'}),
+                        ])
+                    ],
+                    style={
+                        "background": "white",
+                        "padding": "20px",
+                        "width": "400px",
+                        'height': '380px',
+                        "borderRadius": "12px",
+                        "boxShadow": "0px 4px 25px rgba(0,0,0,0.3)",
+                        "textAlign": "left",
+                    }
+                )
+            ],
+            style={
+                "position": "fixed",
+                "top": 0,
+                "left": 0,
+                "width": "100%",
+                "height": "100%",
+                "background": "rgba(0,0,0,0.4)",  
+                "display": 'none',                
+                "alignItems": "center",           
+                "justifyContent": "center",       
+                "zIndex": 99                   
+            }
+        ),
+
+
+        html.Div(
+            id="detail_conformation_popup",
+            children=[
+                html.Div(
+                    id="detail_popup_box",
+                    children=[
+                        html.Div(id='detail_conform_message'),
+
+                        html.Button("YES", id="btn_popup_yes", n_clicks=0, style={'marginRight':'20px'}),
+                        html.Button("NO", id="btn_popup_no", n_clicks=0),
+                    ],
+                    style={
+                        "background": "white",
+                        "padding": "20px",
+                        "borderRadius": "10px",
+                        "width": "300px",
+                        "textAlign": "center",
+                    },
+                )
+            ],
+            style={
+                "position": "fixed",
+                "top": 0,
+                "left": 0,
+                "width": "100%",
+                "height": "100%",
+                "background": "rgba(0,0,0,0.5)",
+                "display": "none",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "zIndex": 999,
+            },
+        ),
 
     ]
 )
 
 query= "SELECT product_name FROM products"
 df_product=fetch_data(query)
+
+query='SELECT product_name, product_id FROM products'
+df=fetch_data(query)
+name_to_id=df.set_index('product_name')['product_id'].to_dict()
+id_to_name=df.set_index('product_id')['product_name'].to_dict()
 
 
 @app.callback(
@@ -583,7 +682,6 @@ def order_popup_dropdown_options_update(search_value,value):
     State('modal_overlay','style'),
     State('order_product_selection', 'value'),
     State('qty_input', 'value'),
-
 )
 
 def conform_order_popup_visibility(_,__,___,____,_____,order_conformation_style,order_page_style,product,quantity):
@@ -594,7 +692,9 @@ def conform_order_popup_visibility(_,__,___,____,_____,order_conformation_style,
                         html.B(f'Product name = {product}'),
                         html.Br(),
                         html.Br(),
-                        html.B(f'Quantity = {quantity}')
+                        html.B(f'Quantity = {quantity}'),
+                        html.Br(),
+                        html.Br(),
                     ])
         order_conformation_style['display'] = 'flex'
         return order_conformation_style , no_update, text
@@ -615,6 +715,155 @@ def conform_order_popup_visibility(_,__,___,____,_____,order_conformation_style,
 
 
 
+@app.callback(
+    Output("live_delivery_feed", "children"),
+    Input("refresh_feed", "n_intervals"),
+)
+
+def refresh_feed(_):
+
+    query= "SELECT shipment_id, product_id, quantity_delivered, order_date FROM shipment_records WHERE status = 'Active' ORDER BY order_date DESC LIMIT 10"
+    df = fetch_data(query)
+
+    cards = []
+
+    for i, row in df.iterrows():
+        cards.append(
+            html.Button(
+                [
+                    html.Div(f"Order #{row.shipment_id}", style={"fontSize": "20px", "fontWeight": "bold"}),
+                    html.Div(f"Product: {row.product_id}"),
+                    html.Div(f"Quantity: {row.quantity_delivered}"),
+                ],
+                n_clicks=0,
+                id={'type':'btn_shipment_detail','index':i, 'shipment_id':row.shipment_id},
+                style={
+                    "padding": "15px",
+                    "borderRadius": "12px",
+                    "background": "white",
+                    "boxShadow": "0px 4px 12px rgba(0,0,0,0.1)",
+                    "marginBottom": "15px",
+                    'marginRight' : '20px',
+                    'width' : '100%',
+                    "cursor": "pointer"
+                }
+            )
+        )
+    return cards
+
+
+
+@app.callback(
+    Output('pop_up_delivery_detail_outer','style',allow_duplicate=True),
+    Output('delivery_details','children'),
+    Input({'type':'btn_shipment_detail','index':ALL,'shipment_id':ALL},'n_clicks'),
+    Input('btn_close_detail','n_clicks'),
+    State('pop_up_delivery_detail_outer','style'),
+    prevent_initial_call=True
+)
+
+def test_func(n_clicks1,_, style1):
+
+    ctx_id=callback_context.triggered_id
+
+    if any(n_clicks1) and n_clicks1:
+
+        if isinstance(ctx_id,dict):
+            style1['display'] = 'flex'
+            shipment_id=ctx_id['shipment_id']
+            query='SELECT product_id, quantity_delivered, order_date FROM shipment_records where shipment_id = :shipment_id'
+            prams={'shipment_id': shipment_id}
+            df=fetch_data(query,prams).iloc[0]
+            order_date= str(df["order_date"]).replace('T',"   ")
+            children=html.Div(
+                html.Div([
+                    html.Div([
+                        html.Strong("Product Name: "),
+                        html.Span(id_to_name[df["product_id"]])
+                    ],style={'marginBottom': '20px',"fontSize": "20px"}),
+                    html.Div([
+                        html.Strong("Product ID: "),
+                        html.Span(df["product_id"])
+                    ],style={'marginBottom': '20px',"fontSize": "20px"}),
+                    html.Div([
+                        html.Strong("Quantity: "),
+                        html.Span(df["quantity_delivered"])
+                    ],style={'marginBottom': '20px',"fontSize": "20px"}),
+                    html.Div([
+                        html.Strong("ID: "),
+                        html.Span(shipment_id)
+                    ],style={'marginBottom': '20px',"fontSize": "20px"}),
+                    html.Div([
+                        html.Strong("Order Date: "),
+                        html.Span(order_date)
+                    ],style={'marginBottom': '30px',"fontSize": "20px"}),
+                ])
+            )
+            return style1, children
+
+    style1['display'] = 'none'
+    return style1, no_update
+
+
+
+@app.callback(
+    Output('detail_conformation_popup','style',allow_duplicate=True),
+    Output('detail_conform_message','children'),
+    Input('btn_cancel_detail','n_clicks'),
+    Input('btn_delivered_detail','n_clicks'),
+    State('detail_conformation_popup','style'),
+    prevent_initial_call=True
+)
+
+def detail_conformation(_,__,style):
+    ctx_id = callback_context.triggered_id
+    if ctx_id == 'btn_cancel_detail':
+        children= html.Div([
+            html.H2('CONFIRMATION'),
+            html.P('Are you sure you want to cancel this delivery ?',style={'fontSize' : '20px'})
+        ])
+    else:
+        children= html.Div([
+            html.H2('CONFIRMATION'),
+            html.P('Are you sure you have recived this delivery ?',style={'fontSize' : '20px'})
+        ])
+    style['display'] = 'flex'
+    return style, children
+
+
+
+@app.callback(
+    Output('detail_conformation_popup','style'),
+    Output('pop_up_delivery_detail_outer','style'),
+    Input('btn_popup_yes','n_clicks'),
+    Input('btn_popup_no','n_clicks'),
+    State('detail_conformation_popup','style'),
+    State('pop_up_delivery_detail_outer','style'),
+    State('detail_conform_message','children'),
+    State('delivery_details','children'),
+    prevent_initial_call=True
+)
+
+def detail_popup_work(_,__,style1,style2,children1,children2):
+    ctx_id= callback_context.triggered_id
+
+    if ctx_id == 'btn_popup_yes' :
+        temp= children1['props']['children'][1]['props']['children']
+        id= children2['props']['children']['props']['children'][3]['props']['children'][1]['props']['children']
+        if 'cancel' in temp :
+            update_data('shipment_records','status',"'Cancled'",'shipment_id',id)
+        else:
+            update_data('shipment_records','status',"'Delivered'",'shipment_id',id)    
+            update_data('shipment_records','delivery_date','NOW()::timestamp(0)','shipment_id',id)   # need to also update in the products table but do that in the last 
+
+        style2['display']= 'none'
+
+    style1['display'] = 'none'
+    return style1, style2
+
+
+
+
 if __name__ == "__main__":
     app.run(debug=True)
 
@@ -629,5 +878,3 @@ if __name__ == "__main__":
 
 #   to add :-
 # 2- make a chart of total profit per day / month / week and also for per product
-# for profit showing i will show bar graph for every year and for every month in a year (will give options for selecting which year the data will show)
-
