@@ -2,166 +2,226 @@ from dash import Dash, html, dcc, Output, Input, State, callback_context, no_upd
 import plotly.express as px
 from pandas import to_datetime
 from db import fetch_data, write_data, update_data
-# db is my file which has the database connected fetch_data is a function througn which i send SQL querry and i get pandas's dataframe
+# db is my file which has the database connected , fetch_data, write_data, update_data are functions which do just as their name suggest
 
 app = Dash(__name__)
 
+rowStyle = {
+    "display": "flex",
+    "justifyContent": "space-between",
+    "gap": "40px",
+    "marginRight": "40px",
+    'marginBottom':'40px',
+}
+
+cardStyle = {
+    "background": "white",
+    "padding": "20px",
+    "borderRadius": "12px",
+    "boxShadow": "0 4px 12px rgba(0,0,0,0.08)",
+}
+
+
 app.layout = html.Div(
-    style={"padding": "30px", "width": "500px", "margin": "0 30px"},
+    style={
+        "padding": "30px",
+        "display": "block",
+        "width": "1300px",
+        "margin": "0 auto", 
+    },
     children=[
 
-        html.Button('go to order page',id='btn_order',n_clicks=0)
-        ,
-        # making a pi chart
-        html.H1('pi-chart for vendors' , style={'textAlign':'center' }),
-        dcc.Graph(id='pi-chart'),
+        # Row-1 for graph and live delivery
+        html.Div([
+            
+            # bar graph for profit / sales graph
+            html.Div([
 
+                html.Div([
+                        html.Button("profit", id="btn_profit", n_clicks=0, style={'width':'100px','height':'30px'}),
+                        html.Button("sales", id="btn_sales", n_clicks=0, style={'width':'100px','height':'30px'}),
+                    ],
+                    style={'gap':'20px','display':'flex','marginLeft':'40px'}
+                ),
 
-        # searching for product
-        html.H2("Search Product Stock", style={"textAlign": "center"}),
+                html.H1("Profit Graph",id='bar_graph_text', style={'textAlign':'center'}),
 
-        html.Div(
-            style={
-                "display": "flex",
-                "gap": "10px",
-                "marginBottom": "20px",
-                "position": "relative"
-            },
-            children=[
-                # Dropdown container with drop-up content
+                html.Div([
+                    html.Button("Year", id="btn_year", n_clicks=0 , style={"width": "100px", "height": "35px"}),
+                    html.Button("Month", id="btn_month", n_clicks=0 , style={"width": "100px", "height": "35px"}),
+                    html.Div(
+                            id='month_dropdown',
+                            children=[
+                                dcc.Dropdown(
+                                    id='year',
+                                    options=[
+                                        {"label": "2023", "value": 2023},
+                                        {"label": "2024", "value": 2024},
+                                        {"label": "2025", "value": 2025},
+                                    ],
+                                    value=2025,
+                                    clearable=False,
+                                    style={'width':'120px', 'margin':'0 auto'}
+                                )],
+                            style={"display": "none"}
+                            ),
+                    ], style={
+                        "position": "absolute",
+                        "top": "115px",
+                        "left": "100px",
+                        "zIndex": 10,
+                        "display": "flex",
+                        "gap": "10px",
+                    }
+                ),
+
+                # Graph
+                dcc.Graph(id='total_profit', style={"height": "350px","marginRight": "-40px","paddingRight": "50px"}),
+
+            ], style={
+                "position": "relative",         
+                "width": "48%", 
+                "height": "480px",  
+                **cardStyle,                  
+            }),
+            
+            # section for live update on delevry
+            html.Div([
+                html.Div([
+                    html.H2(
+                        "🚚 Active Deliveries",
+                        style={
+                            "margin": 0,
+                            "flexGrow": 1,
+                            "textAlign": "center"
+                        }),
+
+                    html.Button('Order More',id='btn_order',n_clicks=0,style={'height':'30px','width':'100px','marginRight':'80px'}),
+                ],
+                style={
+                    "display": "flex",
+                    "alignItems": "center",
+                    "marginBottom": "15px",
+                    "width": "100%",
+                    'marginLeft':'30px'
+                }),
+                html.Div(id="live_delivery_feed",style={"overflowY": "scroll",'height':'400px','width':'500px','marginLeft':'30px'}),
+            ],style={"height": "480px",'width':'48%',**cardStyle,}),
+        
+        ],style=rowStyle),
+
+        # Row-2 for search bar and pi-chart
+        html.Div([
+            
+             # searching for product
+            html.Div([
+                html.H1("Search Product Stock", style={"textAlign": "center"}),
                 html.Div(
-                    style={"flex": "1", "position": "relative"},
+                    style={
+                        "display": "flex",
+                        "gap": "10px",
+                        "marginBottom": "20px",
+                        "position": "relative"
+                    },
                     children=[
-                        # Drop-up content (appears above dropdown)
+                        # Dropdown container with drop-up content
                         html.Div(
-                            id='drop_up_content',
-                            style={
-                                'display': 'none',
-                                'position': 'absolute',
-                                'bottom': '100%',
-                                'left': '0',
-                                'right': '0',
-                                'marginBottom': '10px',
-                                'backgroundColor': 'white',
-                                'border': '1px solid #ddd',
-                                'borderRadius': '5px',
-                                'padding': '15px',
-                                'boxShadow': '0 -2px 10px rgba(0,0,0,0.1)',
-                                'maxHeight': '300px',
-                                'overflowY': 'auto',
-                                'zIndex': '1000'
-                            },
+                            style={"flex": "1", "position": "relative"},
+                            children=[
+                                # Drop-up content (appears above dropdown)
+                                html.Div(
+                                    id='drop_up_content',
+                                    style={
+                                        'display': 'none',
+                                        'position': 'absolute',
+                                        'bottom': '100%',
+                                        'left': '0',
+                                        'right': '0',
+                                        'marginBottom': '10px',
+                                        'backgroundColor': 'white',
+                                        'border': '1px solid #ddd',
+                                        'borderRadius': '5px',
+                                        'padding': '15px',
+                                        'boxShadow': '0 -2px 10px rgba(0,0,0,0.1)',
+                                        'maxHeight': '300px',
+                                        'overflowY': 'auto',
+                                        'zIndex': '1000'
+                                    },
+                                ),
+                                # Searchable dropdown
+                                dcc.Dropdown(
+                                    id="product-dropdown",
+                                    options=[],
+                                    placeholder="Type product name to search...",
+                                    style={
+                                        "fontSize": "16px"
+                                    },
+                                    clearable=True,
+                                    searchable=True,
+                                ),
+                            ]
                         ),
-                        # Searchable dropdown
-                        dcc.Dropdown(
-                            id="product-dropdown",
-                            options=[],
-                            placeholder="Type product name to search...",
+                        
+                        # See All Product button
+                        html.Button(
+                            "See All Product",
+                            id='show_product',
+                            n_clicks=0,
                             style={
-                                "fontSize": "16px"
-                            },
-                            clearable=True,
-                            searchable=True,
-                        ),
+                                "padding": "10px 20px",
+                                "fontSize": "16px",
+                                "cursor": "pointer",
+                                "backgroundColor": "#95a5a6",
+                                "color": "white",
+                                "border": "none",
+                                "borderRadius": "5px",
+                                "whiteSpace": "nowrap",
+                                "height": "38px"
+                            }
+                        )
                     ]
                 ),
-                
-                # See All Product button
                 html.Button(
-                    "See All Product",
-                    id='show_product',
+                    "Search",
+                    id="search-button",
                     n_clicks=0,
                     style={
-                        "padding": "10px 20px",
-                        "fontSize": "16px",
+                        "width": "68%",
+                        "padding": "10px",
+                        "fontSize": "18px",
                         "cursor": "pointer",
-                        "backgroundColor": "#95a5a6",
+                        "backgroundColor": "#3498db",
                         "color": "white",
                         "border": "none",
-                        "borderRadius": "5px",
-                        "whiteSpace": "nowrap",
-                        "height": "38px"
-                    }
-                )
-            ]
-        ),
-        
-        html.Button(
-            "Search",
-            id="search-button",
-            n_clicks=0,
-            style={
-                "width": "68%",
-                "padding": "10px",
-                "fontSize": "18px",
-                "cursor": "pointer",
-                "backgroundColor": "#3498db",
-                "color": "white",
-                "border": "none",
-                "borderRadius": "5px"
-            },
-        ),
-
-        html.Div(
-            id="search-result",
-            style={
-                "fontSize": "20px",
-                "marginTop": "20px",
-                "textAlign": "center",
-                "padding": "15px",
-                "borderRadius": "5px"
-            },
-        ),
-
-
-        # bar graph for profit / sales graph
-        html.Div([
-
-            html.Div([
-                    html.Button("profit", id="btn_profit", n_clicks=0, style={'width':'100px','height':'30px'}),
-                    html.Button("sales", id="btn_sales", n_clicks=0, style={'width':'100px','height':'30px'}),
-                ],
-                style={'gap':'20px','display':'flex'}
-            ),
-
-            html.H1("Profit Graph",id='bar_graph_text', style={'textAlign':'center'}),
-
-            html.Div([
-                html.Button("Year", id="btn_year", n_clicks=0 , style={"width": "100px", "height": "35px"}),
-                html.Button("Month", id="btn_month", n_clicks=0 , style={"width": "100px", "height": "35px"}),
+                        "borderRadius": "5px"
+                    },
+                ),
                 html.Div(
-                        id='month_dropdown',
-                        children=[
-                            dcc.Dropdown(
-                                id='year',
-                                options=[
-                                    {"label": "2023", "value": 2023},
-                                    {"label": "2024", "value": 2024},
-                                    {"label": "2025", "value": 2025},
-                                ],
-                                value=2025,
-                                clearable=False,
-                                style={'width':'120px', 'margin':'0 auto'}
-                            )],
-                        style={"display": "none"}
-                        ),
-                ], style={
-                    "position": "absolute",
-                    "top": "115px",
-                    "left": "100px",
-                    "zIndex": 10,
-                    "display": "flex",
-                    "gap": "10px",
-                }
-            ),
+                    id="search-result",
+                    style={
+                        "fontSize": "20px",
+                        "marginTop": "20px",
+                        "textAlign": "center",
+                        "padding": "15px",
+                        "borderRadius": "5px",
+                        'marginBottom':'50px'
+                    },
+                ),
+            ],style={'width':'48%',"height": "480px",**cardStyle}),
+            
+            # making a pi chart
+            html.Div([
+                html.H1('pi-chart for vendors' , style={'textAlign':'center' }),
+                dcc.Graph(id='pi-chart',style={'height':'88%'}),
+            ],
+            style={
+                'width':'48%',
+                'height':'480px',
+                **cardStyle
+            }),
+        
+        ],style=rowStyle),
 
-            # Graph
-            dcc.Graph(id='total_profit', style={"height": "400px"}),
-
-        ], style={
-            "position": "relative",         
-            "width": "600px",                     
-        }),
 
         # --- Popup Overlay + Centered Modal Box ---
         html.Div(
@@ -189,19 +249,44 @@ app.layout = html.Div(
                             id="qty_input",
                             type="number",
                             placeholder="Quantity",
-                            style={"width": "80%", "marginBottom": "20px",'height' : '40px',"fontSize": "20px",}
+                            min=1,
+                            max=9999,
+                            step=1,
+                            style={"width": "80%", "marginBottom": "40px",'height' : '40px',"fontSize": "20px",}
                         ),
 
                         html.Div([
-                            html.Button("Submit", id="btn_submit", style={"marginRight": "5px"}),
-                            html.Button("Close", id="btn_close", n_clicks=0),
+                            html.Button(
+                                "Submit",
+                                id="btn_submit",
+                                n_clicks=0,
+                                style={
+                                    "marginRight": "20px",
+                                    'height':'35px',
+                                    'width':'100px',
+                                    "borderRadius": "10px",
+                                    "cursor": "pointer",
+                                    "backgroundColor": "#4cf006"
+                                }),
+
+                            html.Button(
+                                "Close",
+                                id="btn_close",
+                                n_clicks=0,
+                                style={
+                                    'height' : '35px',
+                                    'width':'100px',
+                                    "borderRadius": "10px",
+                                    "cursor": "pointer",
+                                    "backgroundColor": "#fa2206" 
+                                }),
                         ])
                     ],
                     style={
                         "background": "white",
                         "padding": "20px",
                         "width": "400px",
-                        'height': '450px',
+                        'height': '300px',
                         "borderRadius": "12px",
                         "boxShadow": "0px 4px 25px rgba(0,0,0,0.3)",
                         "textAlign": "center",
@@ -259,22 +344,6 @@ app.layout = html.Div(
             },
         ),
 
-        # section for live update on delevry
-        html.Div([
-            html.H2("🚚 Active Deliveries", style={
-                "textAlign": "center",
-                "marginBottom": "20px"
-            }),
-
-            html.Div(id="live_delivery_feed",style={"overflowY": "scroll"}),
-
-            dcc.Interval(
-                id="refresh_feed",
-                interval= 5 * 60 * 1000,   
-                n_intervals=0
-            )
-        ]),
-
         # for delivery details which has not yet recived
         html.Div(
             id="pop_up_delivery_detail_outer",
@@ -282,7 +351,7 @@ app.layout = html.Div(
                 html.Div(
                     id="pop_up_delivery_detail_inner",
                     children=[
-                        html.H1("delivery Detail", style={"marginBottom": "30px",'textAlign':'center'}),
+                        html.H1("Delivery Detail", style={"marginBottom": "30px",'textAlign':'center'}),
 
                         html.Div(id='delivery_details'),
                        
@@ -317,7 +386,7 @@ app.layout = html.Div(
             }
         ),
 
-
+        # for delivery detail operation conformation box
         html.Div(
             id="detail_conformation_popup",
             children=[
@@ -439,10 +508,48 @@ def update_dropdown_options(search_value, current_value):
 
 
 
+def making_product_dict():
+    product_dict={}
+    query='SELECT product_sold, discount_rate FROM selling_records;'
+    df= fetch_data(query)
+    df['product_sold'] = df['product_sold'].str.split(';')
+
+    def row_wise(row):
+        for i in row['product_sold']:
+            single_item_list= i.split(' - ')
+            single_item_list[1] = int(single_item_list[1])
+
+            try:
+                x=1-(row['discount_rate']/100)
+                product_dict[single_item_list[0]][0] += single_item_list[1]
+                product_dict[single_item_list[0]][1] += single_item_list[1] * x
+
+            except KeyError:
+                product_dict[single_item_list[0]] = [single_item_list[1], single_item_list[1] * x]
+    
+
+    df.apply(row_wise,axis=1)  # updated a dict name product_dict which now contains each product name as key and a list as value , the list has 2 elements 1st is total product sold and 2nd is total product sold * discount if any
+
+    # getting total sales and total profit per product
+    query='SELECT p.product_name, p.selling_price, v.purchase_price FROM products p JOIN vendors v ON p.product_id = v.for_product;'
+    df= fetch_data(query)
+    def calculating_total_sales(row):
+        cost= product_dict[row['product_name']][0] * row['purchase_price']
+        income= product_dict[row['product_name']][1] * row['selling_price']
+        profit= income - cost
+        product_dict[row['product_name']][1] = profit
+        product_dict[row['product_name']][0] *= row['selling_price']
+        
+    df.apply(calculating_total_sales,axis=1)
+
+    return product_dict
+product_dict=making_product_dict()
+
 @app.callback(
     Output("search-result", "children"),
     Input("search-button", "n_clicks"),
-    State("product-dropdown", "value")
+    State("product-dropdown", "value"),
+    prevent_initial_call=True
 )
 
 def search_product(n_clicks, selected_product):
@@ -470,7 +577,14 @@ def search_product(n_clicks, selected_product):
     return html.Div([
         html.B(f"✅ {row['product_name']}", style={"color": "#27ae60"}),
         html.Br(),
-        html.Span(f"Stock: {row['stock_in_inventory']} units", style={"fontSize": "24px", "color": "#2c3e50"})
+        html.Br(),
+        html.B(f'Total Sales: {product_dict[selected_product][0]}'),
+        html.Br(),
+        html.Br(),
+        html.B(f'Total Profit: {product_dict[selected_product][1]:.2f}'),
+        html.Br(),
+        html.Br(),
+        html.Span(f"Stock Available: {row['stock_in_inventory']} units", style={"fontSize": "24px", "color": "#2c3e50"}),
     ])
 
 
@@ -717,7 +831,7 @@ def conform_order_popup_visibility(_,__,___,____,_____,order_conformation_style,
 
 @app.callback(
     Output("live_delivery_feed", "children"),
-    Input("refresh_feed", "n_intervals"),
+    Input("live_delivery_feed", "id"),
 )
 
 def refresh_feed(_):
@@ -744,7 +858,7 @@ def refresh_feed(_):
                     "boxShadow": "0px 4px 12px rgba(0,0,0,0.1)",
                     "marginBottom": "15px",
                     'marginRight' : '20px',
-                    'width' : '100%',
+                    'width' : '95%',
                     "cursor": "pointer"
                 }
             )
@@ -762,7 +876,7 @@ def refresh_feed(_):
     prevent_initial_call=True
 )
 
-def test_func(n_clicks1,_, style1):
+def order_detail_visibility(n_clicks1,_, style1):
 
     ctx_id=callback_context.triggered_id
 
@@ -848,13 +962,18 @@ def detail_popup_work(_,__,style1,style2,children1,children2):
     ctx_id= callback_context.triggered_id
 
     if ctx_id == 'btn_popup_yes' :
-        temp= children1['props']['children'][1]['props']['children']
-        id= children2['props']['children']['props']['children'][3]['props']['children'][1]['props']['children']
+        temp= children1['props']['children'][1]['props']['children']   # # this contains the final pop up message which comes after clicking 'cancel order' and 'mark as delevered' button
+        shipment_id= children2['props']['children']['props']['children'][3]['props']['children'][1]['props']['children']  # this is shipment id
         if 'cancel' in temp :
-            update_data('shipment_records','status',"'Cancled'",'shipment_id',id)
+            update_data('shipment_records','status',"'Cancled'",'shipment_id',shipment_id)
         else:
-            update_data('shipment_records','status',"'Delivered'",'shipment_id',id)    
-            update_data('shipment_records','delivery_date','NOW()::timestamp(0)','shipment_id',id)   # need to also update in the products table but do that in the last 
+            update_data('shipment_records','status',"'Delivered'",'shipment_id',shipment_id)
+            update_data('shipment_records','delivery_date','NOW()::timestamp(0)','shipment_id',shipment_id)   # need to also update in the products table but do that in the last 
+            product_id= children2['props']['children']['props']['children'][1]['props']['children'][1]['props']['children']
+            product_quantity= children2['props']['children']['props']['children'][2]['props']['children'][1]['props']['children']
+            current_stock= fetch_data('SELECT stock_in_inventory FROM products WHERE product_id = :id',{'id':product_id}).iloc[0]['stock_in_inventory']
+            final_quantity= product_quantity + current_stock
+            update_data('products','stock_in_inventory',f"'{final_quantity}'",'product_id',product_id) # to update the stocks in inventory with the new delivery marked as delivered
 
         style2['display']= 'none'
 
@@ -866,15 +985,3 @@ def detail_popup_work(_,__,style1,style2,children1,children2):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-
-
-
-
-
-
-
-#   to add :-
-# 2- make a chart of total profit per day / month / week and also for per product
