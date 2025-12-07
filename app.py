@@ -1,11 +1,62 @@
 from dash import Dash, html, dcc, Output, Input, State, callback_context, no_update, ALL
 import plotly.express as px
 from pandas import to_datetime
-from db import fetch_data, write_data, update_data
-# db is my file which has the database connected , fetch_data, write_data, update_data are functions which do just as their name suggest
+from sqlalchemy import  text
+import pandas as pd
+from random import randrange
+from db import engine
+# db is my file where engin is a variable which connects the program to my db using sqlalchemy
+
+
+# database functions 
+
+def fetch_data(query, params= None):
+    if params:
+        # Use text() for parameterized queries with SQLAlchemy
+        return pd.read_sql(text(query), engine, params=params)
+    else:
+        return pd.read_sql(text(query), engine)
+    
+def write_data(data):
+    def generate_unique_shipment_id():
+        id_list = fetch_data(
+            'SELECT shipment_id FROM shipment_records;'
+        )['shipment_id'].tolist()
+        
+        while True:
+            new_id = f'S{randrange(100000, 1000000)}'
+            if new_id not in id_list:
+                return new_id
+
+    id= generate_unique_shipment_id()
+    df=fetch_data('select product_id , product_name from products')
+    product_list=dict(zip(df['product_name'],df['product_id']))
+    product_id= product_list.get(data[0])
+    if product_id is None or data[1] is None:
+        raise ValueError(f"Product '{list[0]}' not found in product_list dict or quantity is not selected")
+
+    with engine.connect() as conn:
+        conn.execute(text('''INSERT INTO shipment_records (shipment_id, product_id, quantity_delivered, status)
+                            VALUES (:shipment_id, :product_id, :quantity, 'Active')
+                          '''),
+                          {'shipment_id':id, 'product_id':product_id, 'quantity':data[1]}
+                          )
+        conn.commit()
+
+def update_data(table_name,column_name,new_value,condition_column_name,condition_value):
+    with engine.connect() as conn:
+        conn.execute(text(f'''UPDATE {table_name} SET {column_name} = {new_value}
+                            WHERE {condition_column_name} = '{condition_value}'
+                          ''')
+                          )
+        conn.commit()
+
+
+
 
 app = Dash(__name__)
 
+# extra styling dictinorys
 rowStyle = {
     "display": "flex",
     "justifyContent": "space-between",
@@ -19,6 +70,33 @@ cardStyle = {
     "padding": "20px",
     "borderRadius": "12px",
     "boxShadow": "0 4px 12px rgba(0,0,0,0.08)",
+    "height": "480px",
+    'width':'48%'
+}
+
+selected_btn_style = {
+    "backgroundColor": "#3E75B8",
+    "color": "white",
+    "border": "none",
+    "borderRadius": "8px",
+    "padding": "8px 25px",
+    "cursor": "pointer",
+    "boxShadow": "0px 2px 6px rgba(0,0,0,0.15)",
+    "fontSize": "16px",
+    'width':'100px',
+    'height':'35px'
+}
+
+unselected_btn_style = {
+    "backgroundColor": "#E9EEF5",
+    "color": "#2F2F2F",
+    "border": "1px solid #C5CCD8",
+    "borderRadius": "8px",
+    "padding": "8px 25px",
+    "cursor": "pointer",
+    "fontSize": "16px",
+    'width':'100px',
+    'height':'35px'
 }
 
 
@@ -28,8 +106,38 @@ app.layout = html.Div(
         "display": "block",
         "width": "1300px",
         "margin": "0 auto", 
+        
     },
     children=[
+
+        # dissapering text div
+        html.Div(
+            id="fade_msg",
+            style={
+                "position": "fixed",
+                "fontSize": "20px",
+                "color": "green",
+                "opacity": 0,
+                "transition": "opacity 1s ease",
+                "top": 0,
+                "left": 0,
+                "width": "100vw",
+                "height": "100vh",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "zIndex": 100,
+                'pointerEvents': "none"
+            }
+        ),
+        #dissapering text timer
+        dcc.Interval(
+            id="fade_timer",
+            interval=3000,
+            n_intervals=0,
+            disabled=True
+        ),
+
 
         # Row-1 for graph and live delivery
         html.Div([
@@ -38,8 +146,8 @@ app.layout = html.Div(
             html.Div([
 
                 html.Div([
-                        html.Button("profit", id="btn_profit", n_clicks=0, style={'width':'100px','height':'30px'}),
-                        html.Button("sales", id="btn_sales", n_clicks=0, style={'width':'100px','height':'30px'}),
+                        html.Button("Profit", id="btn_profit", n_clicks=0, style=selected_btn_style),
+                        html.Button("Sales", id="btn_sales", n_clicks=0, style=unselected_btn_style),
                     ],
                     style={'gap':'20px','display':'flex','marginLeft':'40px'}
                 ),
@@ -47,8 +155,8 @@ app.layout = html.Div(
                 html.H1("Profit Graph",id='bar_graph_text', style={'textAlign':'center'}),
 
                 html.Div([
-                    html.Button("Year", id="btn_year", n_clicks=0 , style={"width": "100px", "height": "35px"}),
-                    html.Button("Month", id="btn_month", n_clicks=0 , style={"width": "100px", "height": "35px"}),
+                    html.Button("Year", id="btn_year", n_clicks=0 , style=selected_btn_style),
+                    html.Button("Month", id="btn_month", n_clicks=0 , style=unselected_btn_style),
                     html.Div(
                             id='month_dropdown',
                             children=[
@@ -79,9 +187,7 @@ app.layout = html.Div(
                 dcc.Graph(id='total_profit', style={"height": "350px","marginRight": "-40px","paddingRight": "50px"}),
 
             ], style={
-                "position": "relative",         
-                "width": "48%", 
-                "height": "480px",  
+                "position": "relative", 
                 **cardStyle,                  
             }),
             
@@ -96,7 +202,7 @@ app.layout = html.Div(
                             "textAlign": "center"
                         }),
 
-                    html.Button('Order More',id='btn_order',n_clicks=0,style={'height':'30px','width':'100px','marginRight':'80px'}),
+                    html.Button('Order More',id='btn_order',n_clicks=0,style={'height':'30px','width':'100px','marginRight':'80px',"cursor": "pointer",}),
                 ],
                 style={
                     "display": "flex",
@@ -106,7 +212,7 @@ app.layout = html.Div(
                     'marginLeft':'30px'
                 }),
                 html.Div(id="live_delivery_feed",style={"overflowY": "scroll",'height':'400px','width':'500px','marginLeft':'30px'}),
-            ],style={"height": "480px",'width':'48%',**cardStyle,}),
+            ],style=cardStyle),
         
         ],style=rowStyle),
 
@@ -207,23 +313,19 @@ app.layout = html.Div(
                         'marginBottom':'50px'
                     },
                 ),
-            ],style={'width':'48%',"height": "480px",**cardStyle}),
+            ],style=cardStyle),
             
             # making a pi chart
             html.Div([
-                html.H1('pi-chart for vendors' , style={'textAlign':'center' }),
+                html.H1('Pi-Chart For Vendors' , style={'textAlign':'center' }),
                 dcc.Graph(id='pi-chart',style={'height':'88%'}),
             ],
-            style={
-                'width':'48%',
-                'height':'480px',
-                **cardStyle
-            }),
+            style=cardStyle),
         
         ],style=rowStyle),
 
 
-        # --- Popup Overlay + Centered Modal Box ---
+        # order more screen
         html.Div(
             id="modal_overlay",
             children=[
@@ -307,7 +409,7 @@ app.layout = html.Div(
             }
         ),
 
-        # popup for order conformation
+        # popup for order more conformation
         html.Div(
             id="order_conformation_popup",
             children=[
@@ -344,7 +446,7 @@ app.layout = html.Div(
             },
         ),
 
-        # for delivery details which has not yet recived
+        # delivery details screen
         html.Div(
             id="pop_up_delivery_detail_outer",
             children=[
@@ -356,9 +458,9 @@ app.layout = html.Div(
                         html.Div(id='delivery_details'),
                        
                         html.Div([
-                            html.Button("Cancel Order", id="btn_cancel_detail", n_clicks=0, style={"marginRight": "15px", 'height':'32px'}),
-                            html.Button("Mark As Delevered", id="btn_delivered_detail", n_clicks=0, style={"marginRight": "60px", 'height':'32px'}),
-                            html.Button("Close", id="btn_close_detail", n_clicks=0,style={'height':'32px'}),
+                            html.Button("Cancel Order", id="btn_cancel_detail", n_clicks=0, style={"marginRight": "15px", 'height':'32px',"cursor": "pointer"}),
+                            html.Button("Mark As Delevered", id="btn_delivered_detail", n_clicks=0, style={"marginRight": "60px", 'height':'32px',"cursor": "pointer"}),
+                            html.Button("Close", id="btn_close_detail", n_clicks=0,style={'height':'32px',"cursor": "pointer"}),
                         ])
                     ],
                     style={
@@ -386,7 +488,7 @@ app.layout = html.Div(
             }
         ),
 
-        # for delivery detail operation conformation box
+        # popup for delivery detail conformation box
         html.Div(
             id="detail_conformation_popup",
             children=[
@@ -395,8 +497,8 @@ app.layout = html.Div(
                     children=[
                         html.Div(id='detail_conform_message'),
 
-                        html.Button("YES", id="btn_popup_yes", n_clicks=0, style={'marginRight':'20px'}),
-                        html.Button("NO", id="btn_popup_no", n_clicks=0),
+                        html.Button("YES", id="btn_popup_yes", n_clicks=0, style={'marginRight':'20px',"cursor": "pointer",}),
+                        html.Button("NO", id="btn_popup_no", n_clicks=0, style={"cursor": "pointer",}),
                     ],
                     style={
                         "background": "white",
@@ -432,7 +534,110 @@ df=fetch_data(query)
 name_to_id=df.set_index('product_name')['product_id'].to_dict()
 id_to_name=df.set_index('product_id')['product_name'].to_dict()
 
+# for finding profit and sales per product
+def making_product_dict():
+    product_dict={}
+    query='SELECT product_sold, discount_rate FROM selling_records;'
+    df= fetch_data(query)
+    df['product_sold'] = df['product_sold'].str.split(';')
 
+    def row_wise(row):
+        for i in row['product_sold']:
+            single_item_list= i.split(' - ')
+            single_item_list[1] = int(single_item_list[1])
+
+            try:
+                x=1-(row['discount_rate']/100)
+                product_dict[single_item_list[0]][0] += single_item_list[1]
+                product_dict[single_item_list[0]][1] += single_item_list[1] * x
+
+            except KeyError:
+                product_dict[single_item_list[0]] = [single_item_list[1], single_item_list[1] * x]
+    
+
+    df.apply(row_wise,axis=1)  # updated a dict name product_dict which now contains each product name as key and a list as value , the list has 2 elements 1st is total product sold and 2nd is total product sold * discount if any
+
+    # getting total sales and total profit per product
+    query='SELECT p.product_name, p.selling_price, v.purchase_price FROM products p JOIN vendors v ON p.product_id = v.for_product;'
+    df= fetch_data(query)
+    def calculating_total_sales(row):
+        cost= product_dict[row['product_name']][0] * row['purchase_price']
+        income= product_dict[row['product_name']][1] * row['selling_price']
+        profit= income - cost
+        product_dict[row['product_name']][1] = profit
+        product_dict[row['product_name']][0] *= row['selling_price']
+        
+    df.apply(calculating_total_sales,axis=1)
+
+    return product_dict
+product_dict=making_product_dict()
+
+
+
+
+# dissapering text section
+@app.callback(
+    Output("fade_msg", "children", allow_duplicate=True),
+    Output("fade_msg", "style", allow_duplicate=True),
+    Output("fade_timer", "disabled", allow_duplicate=True),
+    Input("btn_submit", "n_clicks"),
+    State("fade_msg", "style"),
+    State('order_product_selection','value'),
+    State('qty_input', 'value'),
+    prevent_initial_call=True
+)
+
+def show_message(_,style,product,quantity):
+    if not quantity or not product:
+        # Show message instantly
+        style['opacity'] = 1
+        style['color'] = 'red'
+        style['fontSize'] = '20px'
+        return (
+            "The Product or Quantity Block Cannot Be Empty",
+            style,          # fully visible
+            False       # enable timer
+        )
+    return no_update, no_update, no_update
+
+
+@app.callback(
+    Output("fade_msg", "children"),
+    Output("fade_msg", "style"),
+    Output("fade_timer", "disabled"),
+    Input("popup_ok", "n_clicks"),
+    State("fade_msg", "style"),
+    prevent_initial_call=True
+)
+
+def show_order_conform(_,style):
+
+    style['opacity'] = 1
+    style['color'] = 'green'
+    style['fontSize'] = '30px'
+    return (
+        'Order Placed Succesfully',
+        style,
+        False
+    )
+
+
+@app.callback(
+    Output("fade_msg", "style", allow_duplicate=True),
+    Input("fade_timer", "n_intervals"),
+    State("fade_msg", "style"),
+    prevent_initial_call=True
+)
+
+def fade_out(_,style):
+    style['opacity'] = 0
+    return style   # fade to transparent (opacity: 0)
+
+
+
+
+
+# pi-chart section started here
 @app.callback(
     Output('pi-chart','figure'),
     Input('pi-chart','id')
@@ -474,6 +679,9 @@ def pi_chart_function(_):
 
 
 
+
+
+# product searching section starts here
 @app.callback(
     Output("product-dropdown", "options"),
     Input("product-dropdown", "search_value"),
@@ -506,44 +714,6 @@ def update_dropdown_options(search_value, current_value):
 
     return [{"label": name, "value": name} for name in df["product_name"]]
 
-
-
-def making_product_dict():
-    product_dict={}
-    query='SELECT product_sold, discount_rate FROM selling_records;'
-    df= fetch_data(query)
-    df['product_sold'] = df['product_sold'].str.split(';')
-
-    def row_wise(row):
-        for i in row['product_sold']:
-            single_item_list= i.split(' - ')
-            single_item_list[1] = int(single_item_list[1])
-
-            try:
-                x=1-(row['discount_rate']/100)
-                product_dict[single_item_list[0]][0] += single_item_list[1]
-                product_dict[single_item_list[0]][1] += single_item_list[1] * x
-
-            except KeyError:
-                product_dict[single_item_list[0]] = [single_item_list[1], single_item_list[1] * x]
-    
-
-    df.apply(row_wise,axis=1)  # updated a dict name product_dict which now contains each product name as key and a list as value , the list has 2 elements 1st is total product sold and 2nd is total product sold * discount if any
-
-    # getting total sales and total profit per product
-    query='SELECT p.product_name, p.selling_price, v.purchase_price FROM products p JOIN vendors v ON p.product_id = v.for_product;'
-    df= fetch_data(query)
-    def calculating_total_sales(row):
-        cost= product_dict[row['product_name']][0] * row['purchase_price']
-        income= product_dict[row['product_name']][1] * row['selling_price']
-        profit= income - cost
-        product_dict[row['product_name']][1] = profit
-        product_dict[row['product_name']][0] *= row['selling_price']
-        
-    df.apply(calculating_total_sales,axis=1)
-
-    return product_dict
-product_dict=making_product_dict()
 
 @app.callback(
     Output("search-result", "children"),
@@ -588,7 +758,6 @@ def search_product(n_clicks, selected_product):
     ])
 
 
-
 @app.callback(
     Output('drop_up_content', 'children'),
     Output('drop_up_content', 'style'),
@@ -623,6 +792,43 @@ def drop_up_content_update(n_click,style):
 
     return content , style
 
+
+
+
+
+# profit and sales graph started here
+@app.callback(
+    Output('btn_profit','style'),
+    Output('btn_sales','style'),
+    Input('btn_profit','n_clicks'),
+    Input('btn_sales','n_clicks'),
+    State('btn_profit','style'),
+    State('btn_sales','style'),
+    prevent_initial_call=True
+)
+
+def profit_and_sales_color_changing(_,__,style1,style2):
+    ctx_id=callback_context.triggered_id
+    if ctx_id == 'btn_profit':
+        return selected_btn_style,unselected_btn_style
+    return unselected_btn_style,selected_btn_style
+
+
+@app.callback(
+    Output('btn_year','style'),
+    Output('btn_month','style'),
+    Input('btn_year','n_clicks'),
+    Input('btn_month','n_clicks'),
+    State('btn_year','style'),
+    State('btn_month','style'),
+    prevent_initial_call=True 
+)
+
+def profit_and_sales_color_changing(_,__,style1,style2):
+    ctx_id=callback_context.triggered_id
+    if ctx_id == 'btn_year':
+        return selected_btn_style,unselected_btn_style
+    return unselected_btn_style,selected_btn_style
 
 show_profit=True
 @app.callback(
@@ -761,74 +967,9 @@ def perodic_profit(_,__,___,year_value,____,_____):
 
 
 
-@app.callback(
-    Output('order_product_selection','options'),
-    Input('order_product_selection','search_value'),
-    Input('order_product_selection','value')
-)
-
-def order_popup_dropdown_options_update(search_value,value):
-
-    if value and not search_value:
-        # this condition make sure that the value of the dropdown is in the options of dropdown , if the value of dropdown is not in the options of dropdown then the value will be cleared from the dropdown
-        df= df_product[df_product["product_name"].str.contains(value[:5],case=False)].head(5)
-        return [{'label':name , 'value':name} for name in df['product_name']]
-
-    if not search_value or len(search_value) < 1:
-        df= df_product.head(5)
-    else:
-        df= df_product[df_product["product_name"].str.contains(search_value,case=False)].head(5)
-
-    return [{'label':name , 'value':name} for name in df['product_name']]
 
 
-
-@app.callback(
-    Output('order_conformation_popup', 'style'),
-    Output('modal_overlay','style'),
-    Output('popup_order_detail','children'),
-    Input('popup_ok','n_clicks'),
-    Input('popup_cancel','n_clicks'),
-    Input('btn_submit','n_clicks'),
-    Input('btn_order','n_clicks'),
-    Input('btn_close','n_clicks'),
-    State('order_conformation_popup', 'style'),
-    State('modal_overlay','style'),
-    State('order_product_selection', 'value'),
-    State('qty_input', 'value'),
-)
-
-def conform_order_popup_visibility(_,__,___,____,_____,order_conformation_style,order_page_style,product,quantity):
-    ctx_id= callback_context.triggered_id
-
-    if ctx_id == 'btn_submit':
-        text=html.Div([
-                        html.B(f'Product name = {product}'),
-                        html.Br(),
-                        html.Br(),
-                        html.B(f'Quantity = {quantity}'),
-                        html.Br(),
-                        html.Br(),
-                    ])
-        order_conformation_style['display'] = 'flex'
-        return order_conformation_style , no_update, text
-    
-    if ctx_id == 'popup_ok':
-        write_data([product,quantity])
-        order_page_style['display'] = 'none'
-        order_conformation_style['display'] = 'none'
-        return order_conformation_style, order_page_style, no_update
-    
-    if ctx_id == 'popup_cancel':
-        order_conformation_style['display'] = 'none'
-        return order_conformation_style, no_update, no_update
-    
-    else:
-        order_page_style['display'] = 'flex' if ctx_id == 'btn_order' else 'none'
-        return no_update, order_page_style, no_update
-
-
-
+# live delivery section started here
 @app.callback(
     Output("live_delivery_feed", "children"),
     Input("live_delivery_feed", "id"),
@@ -865,6 +1006,73 @@ def refresh_feed(_):
         )
     return cards
 
+
+@app.callback(
+    Output('order_product_selection','options'),
+    Input('order_product_selection','search_value'),
+    Input('order_product_selection','value')
+)
+
+def order_more_popup_dropdown_options_update(search_value,value):
+
+    if value and not search_value:
+        # this condition make sure that the value of the dropdown is in the options of dropdown , if the value of dropdown is not in the options of dropdown then the value will be cleared from the dropdown
+        df= df_product[df_product["product_name"].str.contains(value[:5],case=False)].head(5)
+        return [{'label':name , 'value':name} for name in df['product_name']]
+
+    if not search_value or len(search_value) < 1:
+        df= df_product.head(5)
+    else:
+        df= df_product[df_product["product_name"].str.contains(search_value,case=False)].head(5)
+
+    return [{'label':name , 'value':name} for name in df['product_name']]
+
+
+@app.callback(
+    Output('order_conformation_popup', 'style'),
+    Output('modal_overlay','style'),
+    Output('popup_order_detail','children'),
+    Input('popup_ok','n_clicks'),
+    Input('popup_cancel','n_clicks'),
+    Input('btn_submit','n_clicks'),
+    Input('btn_order','n_clicks'),
+    Input('btn_close','n_clicks'),
+    State('order_conformation_popup', 'style'),
+    State('modal_overlay','style'),
+    State('order_product_selection', 'value'),
+    State('qty_input', 'value'),
+)
+
+def conform_order_popup_visibility(_,__,___,____,_____,order_conformation_style,order_page_style,product,quantity):
+    ctx_id= callback_context.triggered_id
+
+    if ctx_id == 'btn_submit':
+        if product == None or quantity == None or quantity < 0:
+            return no_update, no_update, no_update
+        text=html.Div([
+                        html.B(f'Product name = {product}'),
+                        html.Br(),
+                        html.Br(),
+                        html.B(f'Quantity = {quantity}'),
+                        html.Br(),
+                        html.Br(),
+                    ])
+        order_conformation_style['display'] = 'flex'
+        return order_conformation_style , no_update, text
+    
+    if ctx_id == 'popup_ok':
+        write_data([product,quantity])
+        order_page_style['display'] = 'none'
+        order_conformation_style['display'] = 'none'
+        return order_conformation_style, order_page_style, no_update
+    
+    if ctx_id == 'popup_cancel':
+        order_conformation_style['display'] = 'none'
+        return order_conformation_style, no_update, no_update
+    
+    else:
+        order_page_style['display'] = 'flex' if ctx_id == 'btn_order' else 'none'
+        return no_update, order_page_style, no_update
 
 
 @app.callback(
@@ -919,7 +1127,6 @@ def order_detail_visibility(n_clicks1,_, style1):
     return style1, no_update
 
 
-
 @app.callback(
     Output('detail_conformation_popup','style',allow_duplicate=True),
     Output('detail_conform_message','children'),
@@ -943,7 +1150,6 @@ def detail_conformation(_,__,style):
         ])
     style['display'] = 'flex'
     return style, children
-
 
 
 @app.callback(
