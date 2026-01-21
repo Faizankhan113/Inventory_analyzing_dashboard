@@ -1187,7 +1187,7 @@ def detail_popup_work(_,__,style1,style2,children1,children2):
     return style1, style2
 
 
-
+server = app.server
 
 if __name__ == "__main__":
     app.run(debug=True)
