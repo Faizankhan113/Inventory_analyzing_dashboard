@@ -1,5 +1,10 @@
 # Inventory Management Dashboard (Dash + PostgreSQL)
 
+<p align="center">
+  <img src="output preview/Dashboard.png" width="900">
+</p>
+>  Note: For more images of project see the output preview folder.
+
 ## 📌 Overview
 
 This project is an **interactive inventory and sales management dashboard** built using **Dash, Plotly, and PostgreSQL**. It provides real-time insights into product stock, sales, profit, vendors, and active deliveries, along with the ability to place and manage shipment orders directly from the UI.
