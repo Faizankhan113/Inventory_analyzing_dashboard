@@ -5,7 +5,7 @@ from sqlalchemy import  text
 import pandas as pd
 from random import randrange
 from db import engine
-# db is my file where engin is a variable which connects the program to my db using sqlalchemy
+# db is my file where engin is a variable which connects the program to my db(postgre) using sqlalchemy
 
 
 # database functions 
@@ -1187,7 +1187,7 @@ def detail_popup_work(_,__,style1,style2,children1,children2):
     return style1, style2
 
 
-server = app.server
+
 
 if __name__ == "__main__":
     app.run(debug=True)
